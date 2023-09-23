@@ -1,0 +1,17 @@
+<VirtualHost *:{{ app_port }}>
+   ServerAdmin app.hmancera@localhost
+   ServerName {{ app_host }}
+   ServerAlias www.{{ app_host }}
+   DocumentRoot /var/www/{{ app_host }}
+   ErrorLog ${APACHE_LOG_DIR}/app_error.log
+   CustomLog ${APACHE_LOG_DIR}/app_access.log combined
+
+   <Directory /var/www/{{ app_host }}>
+         Options -Indexes
+   </Directory>
+
+   <IfModule mod_dir.c>
+       DirectoryIndex index.php index.html index.cgi index.pl  index.xhtml index.htm
+   </IfModule>
+
+</VirtualHost>

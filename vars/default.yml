@@ -1,0 +1,12 @@
+---
+mysql_root_password: "asdm"
+app_user: "hugo"
+http_host: "hmancera.com"
+http_conf: "hmancera.conf"
+http_port: "80"
+disable_default: true
+
+# Nueva configuración para app.ydomain
+app_host: "app.hmancera.com"
+app_conf: "app.hmancera.conf"
+app_port: "80"

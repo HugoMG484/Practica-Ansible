@@ -1,0 +1,145 @@
+---
+- hosts: s2
+  become: true
+  vars_files:
+    - vars/default.yml
+
+  tasks:
+    
+    #apt update
+    - name: Install prerequisites!
+      apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
+      loop: [ 'aptitude' ]
+
+    #Instalacion de  paquetes necesarios (Apache2,MySQL,PHP)
+    - name: Instalando los paquetes necesarios!
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: [ 'apache2', 'mysql-server', 'python3-pymysql', 'php', 'php-mysql', 'libapache2-mod-php' ]
+
+    #Creamos la carpeta hmancera.com
+    - name: Creando hmancera.com
+      file:
+        path: "/var/www/{{ http_host }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+    
+    #Configuramos el archivo conf hamancera.com
+    - name: Configurando hmancera.com
+      template:
+        src: "files/hmancera.conf.j2"
+        dest: "/etc/apache2/sites-available/{{ http_conf }}"
+      notify: Reload Apache
+
+    #Habilitamos hmancera.com
+    - name: Habilitar hmancera.com
+      shell: /usr/sbin/a2ensite {{ http_conf }}
+      notify: Reload Apache
+
+    #Creamos app.hmancera.com
+    - name: Creando app.hmancera.com
+      file:
+        path: "/var/www/{{ app_host }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
+    #Configuramos el archivo conf app.hmancera.com
+    - name: Configurando app.hmancera.com
+      template:
+        src: "files/app.hmancera.conf.j2"
+        dest: "/etc/apache2/sites-available/{{ app_conf }}"
+      notify: Reload Apache
+
+    #Habilitamos app.hmancera.com
+    - name: Habilitar app.hmancera.com
+      shell: /usr/sbin/a2ensite {{ app_conf }}
+      notify: Reload Apache
+
+    #Deshabilitar pagina Apache2
+    - name: Deshabilitar pagina por defecto de Apache
+      shell: /usr/sbin/a2dissite 000-default.conf
+      when: disable_default
+      notify: Reload Apache
+
+    # MySQL Configuration
+    - name: Contraseña root
+      mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    #Eliminar las cuentas anónimas
+    - name: Elimine las cuentas anónimas
+      mysql_user:
+        name: ''
+        host_all: yes
+        state: absent
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+
+    #Eliminar base de datos de prueba.
+    - name: Eliminar base de datos de prueba.
+      mysql_db:
+        name: test
+        state: absent
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+
+    # Configure el firewall
+    - name: HTTP en el puerto 80
+      ufw:
+        rule: allow
+        port: "{{ http_port }}"
+        proto: tcp
+
+    # subir la pagina hmancera.com
+    - name: Copiar archivos desde /etc/ansible/hmancera/
+      copy:
+        src: /etc/ansible/hmancera/
+        dest: /var/www/{{ http_host }}/
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '1777'
+    
+    # subir la pagina app.hmancera.com
+    - name: Copiar archivos desde /etc/ansible/app.hmancera/
+      copy:
+        src: /etc/ansible/app.hmancera/
+        dest: /var/www/{{ app_host }}/
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '1777'
+    
+    #Crear DB
+    - name: Crear la base de datos MySQL
+      mysql_db:
+        name: db_practica
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      when: ansible_os_family == 'Debian'
+    
+    # Cargamos el esquema de bases de datos en el servidor.
+    - name: Cargar el archivo SQL en MySQL
+      mysql_db:
+        name: db_practica
+        state: import
+        target: /var/www/{{ app_host }}/db_practica.sql
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      when: ansible_os_family == 'Debian'
+        
+  # Reiniciar Apache
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded
+
+    - name: Restart Apache
+      service:
+        name: apache2
+        state: restarted
